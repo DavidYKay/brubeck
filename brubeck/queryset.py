@@ -1,5 +1,6 @@
 from request_handling import FourOhFourException
-from itertools import imap
+from dictshield.document import Document
+from itertools import imap, repeat
 import zlib
 import ujson as json
 try:
@@ -193,7 +194,7 @@ class DictQueryset(AbstractQueryset):
         return statuses
 
 class RedisQueryset(AbstractQueryset):
-    """This class uses redis to store the DictShield after 
+    """This class uses redis to store the DictShield after
     calling it's `to_json()` method. Upon reading from the Redis
     store, the object is deserialized using json.loads().
 
@@ -202,7 +203,7 @@ class RedisQueryset(AbstractQueryset):
     """
     # TODO: - catch connection exceptions?
     #       - set Redis EXPIRE and self.expires
-    #       - confirm that the correct status is being returned in 
+    #       - confirm that the correct status is being returned in
     #         each circumstance
     def __init__(self, compress=False, compress_level=1, **kw):
         """The Redis connection wiil be passed in **kw and is used below
@@ -211,7 +212,7 @@ class RedisQueryset(AbstractQueryset):
         super(RedisQueryset, self).__init__(**kw)
         self.compress = compress
         self.compress_level = compress_level
-        
+
     def _setvalue(self, shield):
         if self.compress:
             return zlib.compress(shield.to_json(), self.compress_level)
@@ -239,7 +240,7 @@ class RedisQueryset(AbstractQueryset):
 
     def create_one(self, shield):
         shield_value = self._setvalue(shield)
-        shield_key = str(getattr(shield, self.api_id))        
+        shield_key = str(getattr(shield, self.api_id))
         result = self.db_conn.hset(self.api_id, shield_key, shield_value)
         if result:
             return (self.MSG_CREATED, shield)
@@ -253,7 +254,7 @@ class RedisQueryset(AbstractQueryset):
         results = zip(imap(message_handler, pipe.execute()), shields)
         pipe.reset()
         return results
-        
+
     ### Read Functions
 
     def read_all(self):
@@ -315,3 +316,116 @@ class RedisQueryset(AbstractQueryset):
         pipe.reset()
         return zip(imap(message_handler, delete_results), map(self._readvalue, values_results))
 
+class MongoQueryset(AbstractQueryset):
+    def __init__(self, collection_name, **kw):
+        """The Mongo connection wiil be passed in **kw and is used below
+        as self.db_conn.
+        """
+        database = kw['db_conn']
+        self.collection = database[collection_name]
+        super(MongoQueryset, self).__init__(**kw)
+
+    def _dict_to_shield_dict(self, mongo_dict):
+         orig = mongo_dict
+         orig["id"] = orig["_id"]
+         del orig["_id"]
+         return orig
+
+    def _shield_to_mongo_dict(self, shield):
+        if (shield.id):
+           orig = shield.to_python()
+           orig["_id"] = orig["id"]
+           del orig["id"]
+           return orig
+        else:
+          return shield
+
+    def _upsert_shield(self, shield):
+        shield_key = str(getattr(shield, self.api_id))
+        result = self.collection.find_and_modify(
+            query={"_id": shield_key},
+            update=self._shield_to_mongo_dict(shield),
+            upsert=True,
+            new=False,
+        )
+        if result == {}:
+            status = self.MSG_CREATED
+        else:
+            status = self.MSG_UPDATED
+
+        return (status, shield)
+
+    def create_one(self, shield):
+        return self._upsert_shield(shield)
+
+    def create_many(self, shields):
+        # TODO: Convert this to take advantage of the batch upsert
+        #message_handler = self._message_factory(self.MSG_UPDATED, self.MSG_CREATED)
+        #dicts = map(Document.to_python, shields)
+        #db_results = self.collection.insert(
+        #    dicts
+        #)
+        #db_results = map(lambda shield: self.collection.insert(shield.to_python()), shields)
+        #db_results = map(lambda shield: self._upsert_shield(shield), shields)
+
+        #results = zip(repeat(self.MSG_CREATED), db_results)
+        #return (status, results)
+
+        results = map(self._upsert_shield, shields)
+        return results
+
+    def read_all(self):
+        return [(self.MSG_OK, self._dict_to_shield_dict(datum)) for datum in self.collection.find()]
+
+    def read_one(self, iid):
+        datum = self.collection.find_one({"_id": iid});
+        if datum:
+            return (self.MSG_OK, self._dict_to_shield_dict(datum))
+        else:
+            status = self.MSG_FAILED
+            return (self.MSG_FAILED, iid)
+
+    def read_many(self, shield_ids):
+        documents = self.collection.find({"_id": {"$in": shield_ids}})
+        result_dict = {}
+        for doc in documents:
+            doc_id = doc["_id"]
+            result_dict[doc_id] = self._dict_to_shield_dict(doc)
+
+        results = []
+        for shield_id in shield_ids:
+            if shield_id in result_dict.keys():
+              results.append((
+                  self.MSG_OK,
+                  result_dict[shield_id]))
+            else:
+              results.append((self.MSG_FAILED, shield_id))
+
+        return results
+
+    def update_one(self, shield):
+        shield_key = str(getattr(shield, self.api_id))
+        result = self.collection.update({"_id": shield_key}, self._shield_to_mongo_dict(shield), safe=True)
+
+        if result["updatedExisting"]:
+          status = self.MSG_UPDATED
+        else:
+          status = self.MSG_FAILED
+
+        return (status, shield)
+
+    def update_many(self, shields):
+      statuses = [self.update_one(shield) for shield in shields]
+      return statuses
+
+    def destroy_one(self, item_id):
+      result = self.collection.remove(item_id, safe=True)
+      if (result['err'] is None):
+        return (self.MSG_UPDATED, item_id)
+      else:
+        return (self.MSG_FAILED, item_id)
+
+    def destroy_many(self, shield_ids):
+        db_results = self.collection.remove({"_id": {"$in": shield_ids}}, safe=True)
+        results = zip(repeat(self.MSG_UPDATED), shield_ids)
+        return results
