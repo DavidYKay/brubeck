@@ -35,16 +35,6 @@ from dictshield.document import DocumentOptions
 from bson.objectid import ObjectId
 
 ###
-### Utility Methods
-###
-
-def createDocWithId(id_string):
-    doc = TestDoc()
-    #doc._id = id_string
-    doc.id = id_string
-    return doc
-
-###
 ### Tests for ensuring that the autoapi returns good data
 ###
 class TestQuerySetPrimitives(unittest.TestCase):
@@ -351,14 +341,14 @@ class TestMongoQueryset(unittest.TestCase):
         self.db.drop_collection('test_documents')
 
     def seed_reads(self):
-        shields = [createDocWithId("foo"),
-                   createDocWithId("bar"),
-                   createDocWithId("baz")]
+        shields = [TestDoc(id="foo"),
+                   TestDoc(id="bar"),
+                   TestDoc(id="baz")]
         self.queryset.create_many(shields)
         return shields
 
     def test__id_convert(self):
-        shield = createDocWithId("foo")
+        shield = TestDoc(id="foo")
         # Convert it to Mongo-friendly
         mongo_dict = self.queryset._shield_to_mongo_dict(shield)
         self.assertEqual("foo", mongo_dict["_id"])
@@ -366,7 +356,7 @@ class TestMongoQueryset(unittest.TestCase):
         self.assertEqual(shield.to_python(), self.queryset._dict_to_shield_dict(mongo_dict))
 
     def test__create_one(self):
-        shield = createDocWithId("foo")
+        shield = TestDoc(id="foo")
         status, return_shield = self.queryset.create_one(shield)
         self.assertEqual(self.queryset.MSG_CREATED, status)
         self.assertEqual(shield, return_shield)
@@ -376,14 +366,14 @@ class TestMongoQueryset(unittest.TestCase):
 
 
     def test__create_many(self):
-        shield0 = createDocWithId("foo")
-        shield1 = createDocWithId("bar")
-        shield2 = createDocWithId("baz")
+        shield0 = TestDoc(id="foo")
+        shield1 = TestDoc(id="bar")
+        shield2 = TestDoc(id="baz")
         statuses = self.queryset.create_many([shield0, shield1, shield2])
         for status, datum in statuses:
             self.assertEqual(self.queryset.MSG_CREATED, status)
 
-        shield3 = createDocWithId("bloop")
+        shield3 = TestDoc(id="bloop")
         statuses = self.queryset.create_many([shield0, shield3, shield2])
         status, datum = statuses[1]
         self.assertEqual(self.queryset.MSG_CREATED, status)
