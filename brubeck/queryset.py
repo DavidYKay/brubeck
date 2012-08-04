@@ -332,13 +332,13 @@ class MongoQueryset(AbstractQueryset):
          return orig
 
     def _shield_to_mongo_dict(self, shield):
+        mongo_dict = shield.to_python()
         if (shield.id):
-           orig = shield.to_python()
-           orig["_id"] = orig["id"]
-           del orig["id"]
-           return orig
-        else:
-          return shield
+            mongo_dict["_id"] = mongo_dict["id"]
+            del mongo_dict["id"]
+        return mongo_dict
+        #else:
+        #  return shield
 
     def _upsert_shield(self, shield):
         shield_key = str(getattr(shield, self.api_id))

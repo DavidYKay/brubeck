@@ -355,6 +355,14 @@ class TestMongoQueryset(unittest.TestCase):
         # Convert it back
         self.assertEqual(shield.to_python(), self.queryset._dict_to_shield_dict(mongo_dict))
 
+    def test__insert_convert(self):
+        shield = TestDoc(data="Hello")
+        self.queryset.create_one(shield)
+        statuses = self.queryset.read_all()
+        status, datum = statuses[0]
+        self.assertIsNotNone(datum["id"])
+        self.assertEqual(datum["data"], shield.data)
+
     def test__create_one(self):
         shield = TestDoc(id="foo")
         status, return_shield = self.queryset.create_one(shield)
