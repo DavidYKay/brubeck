@@ -30,34 +30,16 @@ class TestDoc(Document):
     data = StringField()
     class Meta:
         id_field = StringField
-
-class MongoDoc(Document):
-    data = StringField()
-    #_id = StringField(id_field=True)
-    #id = StringField(id_field=True)
-    class Meta:
-        id_field = StringField
-    #def __unicode__(self):
-    #  #"%s %s" % (self._id, self.data)
-    #  "%s %s" % (self["_id"], self["data"])
-
 from dictshield.fields import IntField
 from dictshield.document import DocumentOptions
 from bson.objectid import ObjectId
-
-#class SimpleDoc(Document):
-#    title = StringField(max_length=40)
-#    num = IntField()
-#    _id = StringField(id_field=True)
-#    class Meta:
-#        id_field = StringField
 
 ###
 ### Utility Methods
 ###
 
 def createDocWithId(id_string):
-    doc = MongoDoc()
+    doc = TestDoc()
     #doc._id = id_string
     doc.id = id_string
     return doc
