@@ -1,6 +1,7 @@
 from request_handling import FourOhFourException
 from dictshield.document import Document
 from itertools import imap, repeat
+import copy
 import zlib
 import ujson as json
 try:
@@ -326,14 +327,25 @@ class MongoQueryset(AbstractQueryset):
         super(MongoQueryset, self).__init__(**kw)
 
     def _dict_to_shield_dict(self, mongo_dict):
-         orig = mongo_dict
-         orig["id"] = orig["_id"]
-         del orig["_id"]
-         return orig
+         #orig = mongo_dict
+         shield_dict = copy.deepcopy(mongo_dict)
+         shield_dict["id"] = shield_dict["_id"]
+         # TODO: Write a test to cover the case of needing the _id
+         del shield_dict["_id"]
+         """
+         before: del shield_dict["_id"]
+         after: #del shield_dict["_id"]
+         """
+         return shield_dict
 
     def _shield_to_mongo_dict(self, shield):
         mongo_dict = shield.to_python()
-        if shield.id and not mongo_dict.get("_id"):
+        # TODO: Write a test to cover the case that we already have an _id
+        """
+        before: if shield.id:
+        after: if shield.id and not mongo_dict.get("_id"):
+        """
+        if shield.id:
             mongo_dict["_id"] = mongo_dict["id"]
             del mongo_dict["id"]
         return mongo_dict

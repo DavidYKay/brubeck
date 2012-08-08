@@ -347,13 +347,23 @@ class TestMongoQueryset(unittest.TestCase):
         self.queryset.create_many(shields)
         return shields
 
-    def test__id_convert(self):
-        shield = TestDoc(id="foo")
+    def test__id_convert_to_mongo(self):
+        shield = TestDoc(id="foo", data="Hello")
         # Convert it to Mongo-friendly
         mongo_dict = self.queryset._shield_to_mongo_dict(shield)
         self.assertEqual("foo", mongo_dict["_id"])
+        #self.assertIsNone(mongo_dict.get("id"))
+        self.assertEqual("Hello", mongo_dict["data"])
         # Convert it back
         self.assertEqual(shield.to_python(), self.queryset._dict_to_shield_dict(mongo_dict))
+
+    def test__id_convert_from_mongo(self):
+        mongo_dict = {
+            "_id": "501d1fa26a9ba579fd496c1b",
+            "data": "Hello",
+        }
+        shield_dict = self.queryset._dict_to_shield_dict(mongo_dict)
+        self.assertEqual(mongo_dict["_id"], shield_dict['id'])
 
     def test__insert_convert(self):
         shield = TestDoc(data="Hello")
