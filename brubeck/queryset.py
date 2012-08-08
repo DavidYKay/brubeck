@@ -333,7 +333,7 @@ class MongoQueryset(AbstractQueryset):
 
     def _shield_to_mongo_dict(self, shield):
         mongo_dict = shield.to_python()
-        if (shield.id):
+        if shield.id and not mongo_dict.get("_id"):
             mongo_dict["_id"] = mongo_dict["id"]
             del mongo_dict["id"]
         return mongo_dict
